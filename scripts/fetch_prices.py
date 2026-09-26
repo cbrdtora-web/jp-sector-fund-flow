@@ -1,14 +1,15 @@
 """
-data/universe.csv に載っている全銘柄について、stooq.comから日次OHLCV(始値・高値・安値・
-終値・出来高)を取得し、銘柄ごとに data/prices/{code}.csv として保存(または追記)する。
+data/universe.csv に載っている全銘柄について、Yahoo!ファイナンスの非公式チャートAPIから
+日次OHLCV(始値・高値・安値・終値・出来高)を取得し、銘柄ごとに data/prices/{code}.csv
+として保存(または追記)する。
+
+(補足: 当初はstooq.comを使う設計だったが、GitHub Actionsのランナー(データセンターの
+固定IPレンジ)からのアクセスが極端に遅い/タイムアウトする問題が判明したため、
+Yahoo!ファイナンスのチャートAPIに切り替えた。)
 
 銘柄ごとに「保存済みの最終日の翌日」から取得するため、常に再開可能(resumable)。
 初回実行でファイルが無い銘柄は過去 BACKFILL_YEARS 年分をまとめて取得する。
 --mode は完了時のログ表示のためだけの区別で、取得ロジック自体は同じ。
-
-stooqは短時間に大量アクセスするとブロック/遅延することがあるため、
-REQUEST_INTERVAL_SECONDS で間隔を空け、REQUEST_TIMEOUT_SECONDS で
-1件あたりの待ち時間の上限を短めに切って先に進めるようにしている。
 
 GIT_CHECKPOINT_COMMIT=1 が設定されている場合(GitHub Actions上でのみ想定)、
 CHECKPOINT_INTERVAL銘柄ごとに取得済み分をコミット・pushする。銘柄数が多い
@@ -17,7 +18,6 @@ CHECKPOINT_INTERVAL銘柄ごとに取得済み分をコミット・pushする。
 """
 import argparse
 import datetime as dt
-import io
 import os
 import subprocess
 import time
@@ -29,36 +29,54 @@ UNIVERSE_PATH = "data/universe.csv"
 PRICES_DIR = "data/prices"
 
 BACKFILL_YEARS = 14
-REQUEST_INTERVAL_SECONDS = 0.5
-REQUEST_TIMEOUT_SECONDS = 10
+REQUEST_INTERVAL_SECONDS = 0.3
+REQUEST_TIMEOUT_SECONDS = 15
 MAX_RETRIES = 2
 CHECKPOINT_INTERVAL = 100
 
-COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    )
+}
 
 
-def stooq_url(code: str, d1: str | None = None, d2: str | None = None) -> str:
-    url = f"https://stooq.com/q/d/l/?s={code}.jp&i=d"
-    if d1:
-        url += f"&d1={d1}"
-    if d2:
-        url += f"&d2={d2}"
-    return url
+def yahoo_chart_url(code: str) -> str:
+    return f"https://query1.finance.yahoo.com/v8/finance/chart/{code}.T"
 
 
-def fetch_csv(url: str) -> pd.DataFrame | None:
+def fetch_yahoo(code: str, period1: int, period2: int) -> pd.DataFrame | None:
+    params = {"period1": period1, "period2": period2, "interval": "1d", "events": "history"}
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            resp = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
+            resp = requests.get(
+                yahoo_chart_url(code), params=params, headers=HEADERS, timeout=REQUEST_TIMEOUT_SECONDS
+            )
+            if resp.status_code == 404:
+                return None  # 上場廃止・コード不正など
             resp.raise_for_status()
-            text = resp.text.strip()
-            if not text or text.startswith("<"):
+            data = resp.json()
+            result = (data.get("chart") or {}).get("result")
+            if not result:
                 return None
-            df = pd.read_csv(io.StringIO(text))
-            if "Date" not in df.columns:
+            result = result[0]
+            timestamps = result.get("timestamp")
+            if not timestamps:
                 return None
-            return df[COLUMNS]
-        except requests.RequestException:
+            quote = result["indicators"]["quote"][0]
+            df = pd.DataFrame({
+                "Date": pd.to_datetime(timestamps, unit="s", utc=True)
+                    .tz_convert("Asia/Tokyo").strftime("%Y-%m-%d"),
+                "Open": quote.get("open"),
+                "High": quote.get("high"),
+                "Low": quote.get("low"),
+                "Close": quote.get("close"),
+                "Volume": quote.get("volume"),
+            })
+            df = df.dropna(subset=["Close"]).reset_index(drop=True)
+            return df
+        except (requests.RequestException, ValueError, KeyError):
             if attempt == MAX_RETRIES:
                 return None
             time.sleep(1.5 * attempt)
@@ -97,6 +115,10 @@ def checkpoint_commit(progress_note: str) -> None:
     subprocess.run(["git", "push"], check=False)
 
 
+def to_unix(d: dt.date) -> int:
+    return int(dt.datetime.combine(d, dt.time.min, tzinfo=dt.timezone.utc).timestamp())
+
+
 def run(mode: str, limit: int | None = None) -> None:
     os.makedirs(PRICES_DIR, exist_ok=True)
     universe = pd.read_csv(UNIVERSE_PATH, dtype={"code": str})
@@ -111,16 +133,15 @@ def run(mode: str, limit: int | None = None) -> None:
     for i, code in enumerate(codes, start=1):
         last = existing_last_date(code)
         if last is None:
-            d1 = (today - dt.timedelta(days=365 * BACKFILL_YEARS)).strftime("%Y%m%d")
+            start_date = today - dt.timedelta(days=365 * BACKFILL_YEARS)
         else:
             last_date = dt.datetime.strptime(last, "%Y-%m-%d").date()
             if last_date >= today:
                 up_to_date += 1
                 continue
-            d1 = (last_date + dt.timedelta(days=1)).strftime("%Y%m%d")
-        d2 = today.strftime("%Y%m%d")
+            start_date = last_date + dt.timedelta(days=1)
 
-        df = fetch_csv(stooq_url(code, d1, d2))
+        df = fetch_yahoo(code, to_unix(start_date), to_unix(today + dt.timedelta(days=1)))
         if df is None or df.empty:
             empty += 1
         else:

@@ -25,7 +25,7 @@
 scripts/
   fetch_universe.py      JPXの上場銘柄一覧を取得(コード・銘柄名・33業種)
   classify_subthemes.py  33業種→17業種のマッピングとテーマ分類を付与
-  fetch_prices.py        stooqから日次株価(OHLCV)を取得(初回backfill/日次update)
+  fetch_prices.py        Yahoo!ファイナンスから日次株価(OHLCV)を取得(初回backfill/日次update)
   compute_mfi.py         銘柄ごとの資金流入指数を計算
   build_site_data.py     ダッシュボード用のJSONを生成(docs/data/)
 config/
@@ -61,5 +61,7 @@ docs/                     GitHub Pagesで公開する静的サイト本体
   精度を上げたり、新しいテーマを追加したりできます。
 - JPXの銘柄一覧ファイルのURLは将来変わる可能性があります。`fetch_universe.py`が
   失敗するようになったら、JPXサイトで最新のURLを確認してください。
-- stooqのデータ取得は無料枠のため、まれに一部銘柄でデータが取得できないことが
-  あります(その銘柄はその日はスキップされ、翌日以降に再取得を試みます)。
+- Yahoo!ファイナンスは非公式のAPIのため、まれに一部銘柄でデータが取得できない
+  ことがあります(その銘柄はその日はスキップされ、翌日以降に再取得を試みます)。
+  取得が極端に遅い/失敗するようになった場合は、Yahoo側の仕様変更が疑われるため
+  `scripts/fetch_prices.py` を見直してください。
