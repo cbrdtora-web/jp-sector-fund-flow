@@ -9,6 +9,7 @@ data_j.xls の実際のURLはJPXが不定期に変更する(パスの一部が�
 ため、直リンクを固定で持たず、毎回 JPX_INDEX_PAGE から現在のリンクを探しに行く。
 """
 import io
+import os
 import re
 import sys
 from urllib.parse import urljoin
@@ -103,6 +104,7 @@ def main() -> None:
     if universe.empty:
         raise SystemExit("銘柄が0件でした。フィルタ条件かJPXファイルの形式を確認してください。")
 
+    os.makedirs(os.path.dirname(OUTPUT_PATH) or ".", exist_ok=True)
     universe.to_csv(OUTPUT_PATH, index=False, encoding="utf-8")
     print(f"{len(universe)} 銘柄を {OUTPUT_PATH} に保存しました。")
 
