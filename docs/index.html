@@ -10,8 +10,8 @@
   <header class="page-header">
     <h1>日本株 業種別資金流入ダッシュボード</h1>
     <p class="subtitle">
-      東証プライム市場銘柄の株価・出来高から算出した「資金流入指数」(MFIベースの推定指標)を、
-      17業種 → 33業種 → テーマ → 個別銘柄までクリックでたどれます。
+      東証上場の国内普通株式(プライム・スタンダード・グロース、REIT/ETFを除く)の株価・出来高から算出した「資金流入指数」(MFIベースの推定指標)を、
+      33業種 → テーマ → サブテーマ → 個別銘柄までクリックでたどれます。
     </p>
     <p class="disclaimer">
       ※これは実際の売買代金データではなく、値動きと出来高から資金の勢いを推定した代用指標です。
@@ -21,30 +21,15 @@
 
   <nav id="breadcrumb" class="breadcrumb" aria-label="パンくずリスト"></nav>
 
-  <main>
-    <section class="chart-card">
-      <h2 id="chart-title-flow">資金流入指数</h2>
-      <div class="chart-wrap">
-        <canvas id="flow-chart" height="110"></canvas>
-      </div>
-      <div id="flow-legend" class="legend"></div>
-    </section>
+  <div id="toolbar" class="toolbar">
+    <div id="period-control" class="period-control" role="group" aria-label="表示期間"></div>
+    <div id="metric-control" class="metric-control" role="group" aria-label="表示指標" hidden></div>
+  </div>
 
-    <section id="price-card" class="chart-card" hidden>
-      <h2>株価(終値)</h2>
-      <div class="chart-wrap">
-        <canvas id="price-chart" height="110"></canvas>
-      </div>
-    </section>
-
-    <section class="children-card">
-      <h2 id="children-title">内訳</h2>
-      <div id="children-grid" class="children-grid"></div>
-    </section>
-  </main>
+  <main id="chart-area"></main>
 
   <footer class="page-footer">
-    <p>データソース: stooq.com(株価) / 日本取引所グループ(業種分類)。テーマ分類はAIによる近似分類です。</p>
+    <p>データソース: Yahoo!ファイナンス(株価) / 日本取引所グループ(業種分類)。テーマ分類はAIによる近似分類です。凡例をクリックすると個別に表示・非表示を切り替えられます。</p>
   </footer>
 
   <script src="vendor/chart.umd.js"></script>

@@ -11,6 +11,7 @@ data/universe.csv (銘柄マスタ) に対して、
 """
 import json
 import re
+import unicodedata
 
 import pandas as pd
 
@@ -35,11 +36,16 @@ def classify_row(name: str, sector33: str, rules: dict) -> tuple[str, str]:
     if not sector_rules:
         return "", ""
 
+    # JPXの銘柄名は「ＮＴＴ」のように全角英字で書かれていることが多く、
+    # 半角で書いたルールの正規表現がそのままでは一致しない。NFKC正規化で
+    # 全角英数字・記号を半角に揃えてから照合する。
+    normalized = unicodedata.normalize("NFKC", name)
+
     for theme_rule in sector_rules:
-        theme_hit = re.search(theme_rule["match"], name, flags=re.IGNORECASE)
+        theme_hit = re.search(theme_rule["match"], normalized, flags=re.IGNORECASE)
         subtheme_name = ""
         for sub_rule in theme_rule.get("subthemes", []):
-            if re.search(sub_rule["match"], name, flags=re.IGNORECASE):
+            if re.search(sub_rule["match"], normalized, flags=re.IGNORECASE):
                 subtheme_name = sub_rule["name"]
                 break
         # サブテーマの語句(例:「キオクシア」「東京エレクトロン」)がテーマの

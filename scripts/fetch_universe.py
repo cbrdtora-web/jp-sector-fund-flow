@@ -21,9 +21,13 @@ import requests
 # data_j.xls自体の直リンクより変わりにくいため、ここを起点にリンクを探す。
 JPX_INDEX_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/misc/01.html"
 
-# 対象とする市場区分。プライム市場に絞ることでデータ量を現実的な範囲に保つ。
-# 将来的に広げたい場合はここに "スタンダード（内国株式）" 等を追加する。
-TARGET_MARKETS = {"プライム（内国株式）"}
+# 対象とする市場区分。国内の普通株式(プライム/スタンダード/グロース)全てを対象とし、
+# ETF・ETN・REIT・PRO Market等はここに含めないことで自然に除外する。
+TARGET_MARKETS = {
+    "プライム（内国株式）",
+    "スタンダード（内国株式）",
+    "グロース（内国株式）",
+}
 
 OUTPUT_PATH = "data/universe.csv"
 
@@ -85,6 +89,10 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
     df = df[df["code"].str.match(r"^\d{4}$")]
 
     if TARGET_MARKETS:
+        print(f"[debug] 市場区分の内訳(フィルタ前): {df['market'].value_counts().to_dict()}")
+        unknown = set(df["market"].dropna().unique()) - TARGET_MARKETS
+        if unknown:
+            print(f"[debug] 対象外として除外される市場区分: {sorted(unknown)}")
         df = df[df["market"].isin(TARGET_MARKETS)]
 
     df = df.dropna(subset=["sector33"])
