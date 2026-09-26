@@ -5,18 +5,20 @@ JPX(日本取引所グループ)が無料公開している上場銘柄一覧(da
 このスクリプトはこのリポジトリの唯一の「銘柄マスタの正」であり、GitHub Actions上で
 毎日実行することで、新規上場・上場廃止・市場区分変更を自動的に反映する。
 
-注意: JPXの公開URLは時々変更される。失敗した場合はまずこのURLが生きているか
-https://www.jpx.co.jp/markets/statistics-equities/misc/01.html を確認して更新すること。
+data_j.xls の実際のURLはJPXが不定期に変更する(パスの一部がランダムな文字列になっている)
+ため、直リンクを固定で持たず、毎回 JPX_INDEX_PAGE から現在のリンクを探しに行く。
 """
 import io
+import re
 import sys
+from urllib.parse import urljoin
 
 import pandas as pd
 import requests
 
-JPX_LISTED_ISSUES_URL = (
-    "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
-)
+# 上場銘柄一覧(data_j.xls)へのリンクが載っているJPXの一覧ページ。
+# data_j.xls自体の直リンクより変わりにくいため、ここを起点にリンクを探す。
+JPX_INDEX_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/misc/01.html"
 
 # 対象とする市場区分。プライム市場に絞ることでデータ量を現実的な範囲に保つ。
 # 将来的に広げたい場合はここに "スタンダード（内国株式）" 等を追加する。
@@ -24,9 +26,24 @@ TARGET_MARKETS = {"プライム（内国株式）"}
 
 OUTPUT_PATH = "data/universe.csv"
 
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; jp-sector-fund-flow/1.0)"}
+
+
+def find_data_j_xls_url() -> str:
+    resp = requests.get(JPX_INDEX_PAGE, headers=HEADERS, timeout=60)
+    resp.raise_for_status()
+    match = re.search(r'href="([^"]*data_j\.xls)"', resp.text, flags=re.IGNORECASE)
+    if not match:
+        raise SystemExit(
+            f"{JPX_INDEX_PAGE} 内に data_j.xls へのリンクが見つかりませんでした。"
+            "JPXのページ構成が変わった可能性があります。手動で確認してください。"
+        )
+    return urljoin(JPX_INDEX_PAGE, match.group(1))
+
 
 def fetch_listed_issues() -> pd.DataFrame:
-    resp = requests.get(JPX_LISTED_ISSUES_URL, timeout=60)
+    url = find_data_j_xls_url()
+    resp = requests.get(url, headers=HEADERS, timeout=60)
     resp.raise_for_status()
     df = pd.read_excel(io.BytesIO(resp.content))
     return df
