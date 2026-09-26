@@ -1,0 +1,8 @@
+# 中間生成物。GitHub Actions実行のたびに data/universe.csv と config/ から再計算するため、
+# リポジトリには含めない(容量削減と、分類ルール変更時の陳腐化防止のため)。
+data/universe_classified.csv
+data/mfi/
+
+__pycache__/
+*.pyc
+.venv/
