@@ -1,7 +1,12 @@
 name: 初回バックフィル(過去14年分の取得)
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "動作確認用: 先頭N銘柄だけ処理する(空なら全銘柄)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -31,7 +36,7 @@ jobs:
         run: python scripts/classify_subthemes.py
 
       - name: 株価を14年分バックフィル(時間がかかります・途中経過を随時コミット)
-        run: python scripts/fetch_prices.py --mode backfill
+        run: python scripts/fetch_prices.py --mode backfill ${{ github.event.inputs.limit != '' && format('--limit {0}', github.event.inputs.limit) || '' }}
         env:
           GIT_CHECKPOINT_COMMIT: "1"
 

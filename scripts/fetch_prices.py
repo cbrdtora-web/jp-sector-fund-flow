@@ -97,13 +97,16 @@ def checkpoint_commit(progress_note: str) -> None:
     subprocess.run(["git", "push"], check=False)
 
 
-def run(mode: str) -> None:
+def run(mode: str, limit: int | None = None) -> None:
     os.makedirs(PRICES_DIR, exist_ok=True)
     universe = pd.read_csv(UNIVERSE_PATH, dtype={"code": str})
     codes = universe["code"].tolist()
+    if limit:
+        codes = codes[:limit]
 
     today = dt.date.today()
     ok, up_to_date, empty = 0, 0, 0
+    start_time = time.monotonic()
 
     for i, code in enumerate(codes, start=1):
         last = existing_last_date(code)
@@ -125,7 +128,12 @@ def run(mode: str) -> None:
             ok += 1
 
         if i % 50 == 0:
-            print(f"進捗({mode}): {i}/{len(codes)} (取得 {ok} / 更新済み {up_to_date} / データなし {empty})", flush=True)
+            elapsed = time.monotonic() - start_time
+            print(
+                f"進捗({mode}): {i}/{len(codes)} (取得 {ok} / 更新済み {up_to_date} / データなし {empty}) "
+                f"経過{elapsed:.0f}秒 (1件あたり平均{elapsed / i:.2f}秒)",
+                flush=True,
+            )
 
         if i % CHECKPOINT_INTERVAL == 0:
             checkpoint_commit(f"{i}/{len(codes)} 銘柄処理済み")
@@ -139,5 +147,6 @@ def run(mode: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["backfill", "update"], default="update")
+    parser.add_argument("--limit", type=int, default=None, help="動作確認用に先頭N銘柄だけ処理する")
     args = parser.parse_args()
-    run(args.mode)
+    run(args.mode, limit=args.limit)
