@@ -94,7 +94,7 @@ def main() -> None:
         id17 = node_id("17", sector17)
         ensure_node(id17, sector17, "sector17", root_id)
         nodes[id17]["count"] = len(g17)
-        codes17 = g17["code"].tolist()
+        codes17 = [c for c in g17["code"] if c in flows.columns]
         write_series(id17, series_to_records(dates, flows[codes17].sum(axis=1)))
 
         # 2) sector33 層
@@ -102,7 +102,7 @@ def main() -> None:
             id33 = node_id("33", sector33)
             ensure_node(id33, sector33, "sector33", id17)
             nodes[id33]["count"] = len(g33)
-            codes33 = g33["code"].tolist()
+            codes33 = [c for c in g33["code"] if c in flows.columns]
             write_series(id33, series_to_records(dates, flows[codes33].sum(axis=1)))
 
             has_theme = g33["theme"] != ""
@@ -115,7 +115,7 @@ def main() -> None:
                 idth = node_id("theme", sector33, theme)
                 ensure_node(idth, theme, "theme", id33)
                 nodes[idth]["count"] = len(gth)
-                codesth = gth["code"].tolist()
+                codesth = [c for c in gth["code"] if c in flows.columns]
                 write_series(idth, series_to_records(dates, flows[codesth].sum(axis=1)))
 
                 has_sub = gth["subtheme"] != ""
@@ -127,13 +127,14 @@ def main() -> None:
                     idsub = node_id("subtheme", sector33, theme, subtheme)
                     ensure_node(idsub, subtheme, "subtheme", idth)
                     nodes[idsub]["count"] = len(gsub)
-                    codessub = gsub["code"].tolist()
+                    codessub = [c for c in gsub["code"] if c in flows.columns]
                     write_series(idsub, series_to_records(dates, flows[codessub].sum(axis=1)))
 
                     for _, row in gsub.iterrows():
                         add_stock_node(nodes, dates, flows, closes, row, idsub)
 
-    write_series(root_id, series_to_records(dates, flows[all_codes].sum(axis=1)))
+    available_codes = [c for c in all_codes if c in flows.columns]
+    write_series(root_id, series_to_records(dates, flows[available_codes].sum(axis=1)))
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(os.path.join(OUTPUT_DIR, "tree.json"), "w", encoding="utf-8") as f:
