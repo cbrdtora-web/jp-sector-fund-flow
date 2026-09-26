@@ -32,11 +32,22 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; jp-sector-fund-flow/1.0)"}
 def find_data_j_xls_url() -> str:
     resp = requests.get(JPX_INDEX_PAGE, headers=HEADERS, timeout=60)
     resp.raise_for_status()
-    match = re.search(r'href="([^"]*data_j\.xls)"', resp.text, flags=re.IGNORECASE)
+    print(f"[debug] {JPX_INDEX_PAGE} -> status={resp.status_code} bytes={len(resp.text)}")
+
+    # まず厳密に "data_j.xls" を含むリンクを探す。見つからなければ、拡張子が
+    # .xls/.xlsx の全リンクを候補として提示する(JPX側の命名規則が変わった場合の保険)。
+    match = re.search(r'href="([^"]*data_j\.xls[^"]*)"', resp.text, flags=re.IGNORECASE)
     if not match:
+        all_excel_links = re.findall(r'href="([^"]*\.xlsx?[^"]*)"', resp.text, flags=re.IGNORECASE)
+        print(f"[debug] data_j.xls への直接一致なし。ページ内の.xls/.xlsxリンク一覧: {all_excel_links}")
+        if len(all_excel_links) == 1:
+            print("[debug] 候補が1件のみのため、それを採用します。")
+            return urljoin(JPX_INDEX_PAGE, all_excel_links[0])
+        print(f"[debug] ページ先頭2000文字: {resp.text[:2000]}")
         raise SystemExit(
             f"{JPX_INDEX_PAGE} 内に data_j.xls へのリンクが見つかりませんでした。"
-            "JPXのページ構成が変わった可能性があります。手動で確認してください。"
+            "JPXのページ構成が変わった可能性があります。上記の[debug]ログ(候補リンク一覧・ページ内容)を確認し、"
+            "JPX_INDEX_PAGE またはリンクの探し方を修正してください。"
         )
     return urljoin(JPX_INDEX_PAGE, match.group(1))
 
