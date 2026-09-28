@@ -6,3 +6,8 @@ data/mfi/
 __pycache__/
 *.pyc
 .venv/
+
+# Claude Artifact用スナップショットの生成物。scripts/build_artifact_snapshot.py で
+# その都度 docs/data から再生成するため、リポジトリには含めない。
+artifact/index.html
+artifact/data/
