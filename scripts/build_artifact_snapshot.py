@@ -102,7 +102,7 @@ def build_html() -> None:
     個別銘柄の資金流入・株価チャートは <a href="{SITE_URL}" target="_blank" rel="noopener">フル機能版サイト</a> でご覧いただけます。</p>
   </footer>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+  <script src="chart.umd.js"></script>
   <script>
 {js}
   </script>
