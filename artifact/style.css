@@ -71,7 +71,7 @@ body {
 .notice-card a { color: var(--series-1); }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.period-control { display: flex; gap: 4px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+.period-control { display: flex; flex-wrap: wrap; gap: 4px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
 .period-btn { border: none; background: none; color: var(--text-secondary); font-size: 12px; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
 .period-btn.active { background: var(--series-1); color: #ffffff; }
 

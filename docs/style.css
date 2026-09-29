@@ -116,6 +116,7 @@ body {
 }
 .period-control, .metric-control {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   background: var(--surface-1);
   border: 1px solid var(--border);

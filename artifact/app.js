@@ -4,12 +4,34 @@
   const SITE_URL = "https://cbrdtora-web.github.io/jp-sector-fund-flow/";
 
   const PERIODS = [
-    { key: "1y", label: "1年" },
-    { key: "3y", label: "3年" },
-    { key: "5y", label: "5年" },
-    { key: "10y", label: "10年" },
-    { key: "all", label: "全期間" },
+    { key: "1w", label: "1週間", days: 7 },
+    { key: "1m", label: "1ヶ月", days: 30 },
+    { key: "1y", label: "1年", days: 365 },
+    { key: "3y", label: "3年", days: 365 * 3 },
+    { key: "5y", label: "5年", days: 365 * 5 },
+    { key: "10y", label: "10年", days: 365 * 10 },
+    { key: "all", label: "全期間", days: null },
   ];
+
+  // 資金流入指数のような桁の大きい数値を「億」「兆」などの単位で読みやすくする。
+  function formatCompactJP(value) {
+    if (value === null || value === undefined || Number.isNaN(value)) return "-";
+    const sign = value < 0 ? "-" : "";
+    const abs = Math.abs(value);
+    const trim = (n) => {
+      const rounded = Math.round(n * 10) / 10;
+      return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
+    };
+    if (abs >= 1e12) return `${sign}${trim(abs / 1e12)}兆`;
+    if (abs >= 1e8) return `${sign}${trim(abs / 1e8)}億`;
+    if (abs >= 1e4) return `${sign}${trim(abs / 1e4)}万`;
+    return `${sign}${trim(abs)}`;
+  }
+
+  function formatValueForAxis(value, valueKey) {
+    if (valueKey === "close") return value.toLocaleString("ja-JP");
+    return formatCompactJP(value);
+  }
 
   let tree = null;
   const seriesCache = new Map();
@@ -73,10 +95,10 @@
     if (!records || records.length === 0) return [];
     let windowed = records;
     if (periodKey !== "all") {
-      const years = { "1y": 1, "3y": 3, "5y": 5, "10y": 10 }[periodKey];
+      const days = PERIODS.find((p) => p.key === periodKey).days;
       const lastDate = new Date(records[records.length - 1].date);
       const cutoff = new Date(lastDate);
-      cutoff.setFullYear(cutoff.getFullYear() - years);
+      cutoff.setDate(cutoff.getDate() - days);
       windowed = records.filter((r) => new Date(r.date) >= cutoff);
     }
     if (rebase && windowed.length > 0) {
@@ -137,7 +159,7 @@
     charts = [];
   }
 
-  function baseLineOptions() {
+  function baseLineOptions(valueKey) {
     return {
       responsive: true,
       animation: false,
@@ -150,7 +172,10 @@
         },
         y: {
           grid: { color: cssVar("--gridline"), drawTicks: false },
-          ticks: { color: cssVar("--text-muted") },
+          ticks: {
+            color: cssVar("--text-muted"),
+            callback: (value) => formatValueForAxis(value, valueKey),
+          },
           border: { display: false },
         },
       },
@@ -162,6 +187,13 @@
           bodyColor: cssVar("--text-secondary"),
           borderColor: cssVar("--border"),
           borderWidth: 1,
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              const formatted = v === null || v === undefined ? "-" : formatValueForAxis(v, valueKey);
+              return `${ctx.dataset.label}: ${formatted}`;
+            },
+          },
         },
       },
     };
@@ -209,7 +241,7 @@
       });
     });
 
-    const chart = new Chart(canvas, { type: "line", data: { labels, datasets }, options: baseLineOptions() });
+    const chart = new Chart(canvas, { type: "line", data: { labels, datasets }, options: baseLineOptions(valueKey) });
     charts.push(chart);
 
     datasets.forEach((ds, i) => {
