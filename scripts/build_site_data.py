@@ -159,7 +159,7 @@ def add_stock_node(nodes: dict, dates, flows: pd.DataFrame, closes: pd.DataFrame
         return
     nodes[code] = {
         "id": code, "name": f"{row['name']}({code})", "level": "stock",
-        "parent": parent_id, "children": [], "count": 1,
+        "parent": parent_id, "children": [], "count": 1, "market": row.get("market", ""),
     }
     nodes[parent_id]["children"].append(code)
 

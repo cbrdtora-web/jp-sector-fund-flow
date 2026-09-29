@@ -240,6 +240,35 @@
     charts = [];
   }
 
+  // TradingViewと同様に、ズーム/パンで見えている範囲のデータに合わせてY軸を
+  // 自動的に伸縮させる(表示中の全系列の最小値〜最大値にフィット)。
+  function rescaleYToVisibleRange(chart) {
+    const xScale = chart.scales.x;
+    if (!xScale) return;
+    const minIndex = Math.max(0, Math.floor(xScale.min));
+    const maxIndex = Math.min(chart.data.labels.length - 1, Math.ceil(xScale.max));
+    let min = Infinity;
+    let max = -Infinity;
+    chart.data.datasets.forEach((ds, i) => {
+      if (chart.getDatasetMeta(i).hidden) return;
+      for (let idx = minIndex; idx <= maxIndex; idx++) {
+        const v = ds.data[idx];
+        if (v === null || v === undefined) continue;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+    });
+    if (min === Infinity) return;
+    if (min === max) {
+      min -= 1;
+      max += 1;
+    }
+    const pad = (max - min) * 0.08;
+    chart.options.scales.y.min = min - pad;
+    chart.options.scales.y.max = max + pad;
+    chart.update("none");
+  }
+
   function baseLineOptions(valueKey) {
     return {
       responsive: true,
@@ -277,13 +306,19 @@
           },
         },
         // TradingViewと同様に、マウスホイールでズーム、ドラッグでパンできるようにする。
+        // パン/ズームのたびにY軸を表示範囲に合わせて伸縮させ(縦横ともに追従)、
         // ダブルクリックで元の表示範囲に戻る(renderMultiLineChart側でresetZoomを紐付け)。
         zoom: {
-          pan: { enabled: true, mode: "x" },
+          pan: {
+            enabled: true,
+            mode: "x",
+            onPanComplete: ({ chart }) => rescaleYToVisibleRange(chart),
+          },
           zoom: {
             wheel: { enabled: true, speed: 0.1 },
             pinch: { enabled: true },
             mode: "x",
+            onZoomComplete: ({ chart }) => rescaleYToVisibleRange(chart),
           },
           limits: { x: { minRange: 5 } },
         },
@@ -337,8 +372,13 @@
     chart._valueKey = valueKey; // クロスヘアのY軸ラベル表示(億/兆)に使う
     charts.push(chart);
 
-    // TradingViewと同じくダブルクリックでズーム/パンをリセットする。
-    canvas.addEventListener("dblclick", () => chart.resetZoom());
+    // TradingViewと同じくダブルクリックでズーム/パン(Y軸の自動伸縮含む)をリセットする。
+    canvas.addEventListener("dblclick", () => {
+      chart.resetZoom();
+      delete chart.options.scales.y.min;
+      delete chart.options.scales.y.max;
+      chart.update();
+    });
 
     datasets.forEach((ds, i) => {
       const chip = document.createElement("button");

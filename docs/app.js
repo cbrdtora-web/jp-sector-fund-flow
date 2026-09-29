@@ -60,6 +60,14 @@
     return `hsl(${hue} ${sat}% ${light}%)`;
   }
 
+  // JPXの市場区分表記(例:「プライム(内国株式)」)から短いラベルを取り出す。
+  function shortMarketLabel(market) {
+    if (market.includes("プライム")) return "プライム";
+    if (market.includes("スタンダード")) return "スタンダード";
+    if (market.includes("グロース")) return "グロース";
+    return market;
+  }
+
   // TradingViewのようなクロスヘア(十字線)をマウス位置に追従して描画するプラグイン。
   // 個別系列のツールチップ表示(nearest/intersect)とは独立して動作する。
   const crosshairPlugin = {
@@ -280,6 +288,35 @@
     charts = [];
   }
 
+  // TradingViewと同様に、ズーム/パンで見えている範囲のデータに合わせてY軸を
+  // 自動的に伸縮させる(表示中の全系列の最小値〜最大値にフィット)。
+  function rescaleYToVisibleRange(chart) {
+    const xScale = chart.scales.x;
+    if (!xScale) return;
+    const minIndex = Math.max(0, Math.floor(xScale.min));
+    const maxIndex = Math.min(chart.data.labels.length - 1, Math.ceil(xScale.max));
+    let min = Infinity;
+    let max = -Infinity;
+    chart.data.datasets.forEach((ds, i) => {
+      if (chart.getDatasetMeta(i).hidden) return;
+      for (let idx = minIndex; idx <= maxIndex; idx++) {
+        const v = ds.data[idx];
+        if (v === null || v === undefined) continue;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+    });
+    if (min === Infinity) return;
+    if (min === max) {
+      min -= 1;
+      max += 1;
+    }
+    const pad = (max - min) * 0.08;
+    chart.options.scales.y.min = min - pad;
+    chart.options.scales.y.max = max + pad;
+    chart.update("none");
+  }
+
   function baseLineOptions(valueKey, showLegendTooltip) {
     const unitSuffix = valueKey === "close" ? "円" : "";
     return {
@@ -319,13 +356,19 @@
           },
         },
         // TradingViewと同様に、マウスホイールでズーム、ドラッグでパンできるようにする。
+        // パン/ズームのたびにY軸を表示範囲に合わせて伸縮させ(縦横ともに追従)、
         // ダブルクリックで元の表示範囲に戻る(renderMultiLineChart側でresetZoomを紐付け)。
         zoom: {
-          pan: { enabled: true, mode: "x" },
+          pan: {
+            enabled: true,
+            mode: "x",
+            onPanComplete: ({ chart }) => rescaleYToVisibleRange(chart),
+          },
           zoom: {
             wheel: { enabled: true, speed: 0.1 },
             pinch: { enabled: true },
             mode: "x",
+            onZoomComplete: ({ chart }) => rescaleYToVisibleRange(chart),
           },
           limits: { x: { minRange: 5 } },
         },
@@ -349,6 +392,11 @@
     wrap.appendChild(canvas);
     card.appendChild(wrap);
 
+    const bulkControls = document.createElement("div");
+    bulkControls.className = "legend-bulk-controls";
+    bulkControls.hidden = true; // onLegendClickがない(銘柄一覧)場合のみ後で表示する
+    card.appendChild(bulkControls);
+
     const legendEl = document.createElement("div");
     legendEl.className = "chart-legend";
     card.appendChild(legendEl);
@@ -366,6 +414,7 @@
       datasets.push({
         label: entry.name,
         _nodeId: entry.id,
+        _market: entry.market ? shortMarketLabel(entry.market) : "",
         data: filtered.map((r) => r[valueKey] ?? null),
         borderColor: color,
         backgroundColor: color,
@@ -385,9 +434,15 @@
     chart._valueKey = valueKey; // クロスヘアのY軸ラベル表示(億/兆 or 円)の切り替えに使う
     charts.push(chart);
 
-    // TradingViewと同じくダブルクリックでズーム/パンをリセットする。
-    canvas.addEventListener("dblclick", () => chart.resetZoom());
+    // TradingViewと同じくダブルクリックでズーム/パン(Y軸の自動伸縮含む)をリセットする。
+    canvas.addEventListener("dblclick", () => {
+      chart.resetZoom();
+      delete chart.options.scales.y.min;
+      delete chart.options.scales.y.max;
+      chart.update();
+    });
 
+    const chips = [];
     datasets.forEach((ds, i) => {
       const chip = document.createElement("button");
       chip.className = "legend-chip";
@@ -407,10 +462,62 @@
           meta.hidden = !meta.hidden;
           chip.classList.toggle("dimmed", !!meta.hidden);
           chart.update();
+          rescaleYToVisibleRange(chart);
         }
       });
       legendEl.appendChild(chip);
+      chips.push(chip);
     });
+
+    // 個別銘柄一覧(onLegendClickなし、線が多くなりがち)では、
+    // 一括表示/非表示ボタンと市場区分(プライム/スタンダード/グロース)フィルタを出す。
+    if (!onLegendClick) {
+      const setAllHidden = (hidden) => {
+        datasets.forEach((ds, i) => {
+          chart.getDatasetMeta(i).hidden = hidden;
+          chips[i].classList.toggle("dimmed", hidden);
+        });
+        chart.update();
+        rescaleYToVisibleRange(chart);
+      };
+
+      const showAllBtn = document.createElement("button");
+      showAllBtn.className = "bulk-btn";
+      showAllBtn.textContent = "すべて表示";
+      showAllBtn.addEventListener("click", () => setAllHidden(false));
+      bulkControls.appendChild(showAllBtn);
+
+      const hideAllBtn = document.createElement("button");
+      hideAllBtn.className = "bulk-btn";
+      hideAllBtn.textContent = "すべて非表示";
+      hideAllBtn.addEventListener("click", () => setAllHidden(true));
+      bulkControls.appendChild(hideAllBtn);
+
+      const markets = [...new Set(datasets.map((ds) => ds._market).filter(Boolean))];
+      if (markets.length > 0) {
+        const sortOrder = ["プライム", "スタンダード", "グロース"];
+        markets.sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
+        for (const market of markets) {
+          const btn = document.createElement("button");
+          btn.className = "bulk-btn market-btn active";
+          btn.textContent = market;
+          btn.addEventListener("click", () => {
+            const nowActive = !btn.classList.contains("active");
+            btn.classList.toggle("active", nowActive);
+            datasets.forEach((ds, i) => {
+              if (ds._market !== market) return;
+              chart.getDatasetMeta(i).hidden = !nowActive;
+              chips[i].classList.toggle("dimmed", !nowActive);
+            });
+            chart.update();
+            rescaleYToVisibleRange(chart);
+          });
+          bulkControls.appendChild(btn);
+        }
+      }
+
+      bulkControls.hidden = false;
+    }
 
     return chart;
   }
@@ -513,7 +620,12 @@
     chartArea.innerHTML = "";
     destroyCharts();
 
-    const entries = stockIds.map((id) => ({ id, name: tree.nodes[id].name, records: dataMap.get(id) || [] }));
+    const entries = stockIds.map((id) => ({
+      id,
+      name: tree.nodes[id].name,
+      records: dataMap.get(id) || [],
+      market: tree.nodes[id].market || "",
+    }));
     const valueKey = metric === "close" ? "close" : "flow";
     const title = metric === "close" ? `株価: ${label}(${stockIds.length}銘柄)` : `資金流入指数: ${label}(${stockIds.length}銘柄)`;
     renderMultiLineChart(chartArea, title, entries, valueKey, metric === "flow", null);

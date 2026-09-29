@@ -145,6 +145,28 @@ body {
   text-align: center;
 }
 
+.legend-bulk-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.bulk-btn {
+  border: 1px solid var(--border);
+  background: var(--page-plane);
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.bulk-btn:hover { border-color: var(--series-1); }
+.bulk-btn.market-btn.active {
+  background: var(--series-1);
+  color: #ffffff;
+  border-color: var(--series-1);
+}
+
 .chart-legend {
   display: flex;
   flex-wrap: wrap;
