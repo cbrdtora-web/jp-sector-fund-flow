@@ -103,6 +103,8 @@ def build_html() -> None:
   </footer>
 
   <script src="chart.umd.js"></script>
+  <script src="hammer.min.js"></script>
+  <script src="chartjs-plugin-zoom.min.js"></script>
   <script>
 {js}
   </script>

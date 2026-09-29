@@ -66,6 +66,7 @@ body {
 }
 .chart-card h2 { font-size: 14px; margin: 0 0 12px; color: var(--text-primary); }
 .chart-wrap { position: relative; width: 100%; }
+.chart-wrap canvas { cursor: crosshair; touch-action: none; }
 
 .notice-card p { font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; }
 .notice-card a { color: var(--series-1); }

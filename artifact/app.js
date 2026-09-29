@@ -58,6 +58,87 @@
     return `hsl(${hue} ${sat}% ${light}%)`;
   }
 
+  // TradingViewのようなクロスヘア(十字線)をマウス位置に追従して描画するプラグイン。
+  // 個別系列のツールチップ表示(nearest/intersect)とは独立して動作する。
+  const crosshairPlugin = {
+    id: "crosshair",
+    afterInit(chart) {
+      chart._crosshair = { x: 0, y: 0, active: false };
+    },
+    afterEvent(chart, args) {
+      const { event } = args;
+      const area = chart.chartArea;
+      if (!area) return;
+      if (event.type === "mousemove" || event.type === "mouseover") {
+        const inside =
+          event.x >= area.left && event.x <= area.right && event.y >= area.top && event.y <= area.bottom;
+        chart._crosshair = { x: event.x, y: event.y, active: inside };
+        args.changed = true;
+      } else if (event.type === "mouseout") {
+        if (chart._crosshair.active) args.changed = true;
+        chart._crosshair.active = false;
+      }
+    },
+    afterDraw(chart) {
+      const cross = chart._crosshair;
+      if (!cross || !cross.active) return;
+      const { ctx, chartArea: area, scales } = chart;
+      const lineColor = cssVar("--text-muted") || "#999999";
+      const labelBg = cssVar("--series-1") || "#2a78d6";
+
+      ctx.save();
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+
+      ctx.beginPath();
+      ctx.moveTo(cross.x, area.top);
+      ctx.lineTo(cross.x, area.bottom);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(area.left, cross.y);
+      ctx.lineTo(area.right, cross.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const drawLabel = (text, boxX, boxY, boxW, boxH) => {
+        ctx.fillStyle = labelBg;
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.fillStyle = "#ffffff";
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "left";
+        ctx.fillText(text, boxX + 5, boxY + boxH / 2 + 0.5);
+      };
+
+      ctx.font = "11px system-ui, -apple-system, sans-serif";
+
+      const xScale = scales.x;
+      if (xScale) {
+        const idx = Math.round(xScale.getValueForPixel(cross.x));
+        const label = xScale.getLabelForValue(idx) ?? "";
+        const boxW = ctx.measureText(label).width + 10;
+        const boxH = 18;
+        const boxX = Math.max(area.left, Math.min(cross.x - boxW / 2, area.right - boxW));
+        drawLabel(label, boxX, area.bottom + 2, boxW, boxH);
+      }
+
+      const yScale = scales.y;
+      if (yScale) {
+        const value = yScale.getValueForPixel(cross.y);
+        const label = formatValueForAxis(value, chart._valueKey);
+        const boxW = ctx.measureText(label).width + 10;
+        const boxH = 18;
+        const boxX = Math.max(0, area.left - boxW - 2);
+        const boxY = Math.min(Math.max(cross.y - boxH / 2, area.top), area.bottom - boxH);
+        drawLabel(label, boxX, boxY, boxW, boxH);
+      }
+
+      ctx.restore();
+    },
+  };
+  if (window.Chart) Chart.register(crosshairPlugin);
+
   async function fetchJson(path) {
     const res = await fetch(path, { cache: "no-cache" });
     if (!res.ok) throw new Error(`fetch failed: ${path}`);
@@ -195,6 +276,17 @@
             },
           },
         },
+        // TradingViewと同様に、マウスホイールでズーム、ドラッグでパンできるようにする。
+        // ダブルクリックで元の表示範囲に戻る(renderMultiLineChart側でresetZoomを紐付け)。
+        zoom: {
+          pan: { enabled: true, mode: "x" },
+          zoom: {
+            wheel: { enabled: true, speed: 0.1 },
+            pinch: { enabled: true },
+            mode: "x",
+          },
+          limits: { x: { minRange: 5 } },
+        },
       },
     };
   }
@@ -242,7 +334,11 @@
     });
 
     const chart = new Chart(canvas, { type: "line", data: { labels, datasets }, options: baseLineOptions(valueKey) });
+    chart._valueKey = valueKey; // クロスヘアのY軸ラベル表示(億/兆)に使う
     charts.push(chart);
+
+    // TradingViewと同じくダブルクリックでズーム/パンをリセットする。
+    canvas.addEventListener("dblclick", () => chart.resetZoom());
 
     datasets.forEach((ds, i) => {
       const chip = document.createElement("button");
