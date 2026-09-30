@@ -382,12 +382,37 @@
     });
   }
 
-  function renderStockNotice(container, label) {
+  const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const tvUrl = (code) => "https://jp.tradingview.com/chart/?symbol=TSE%3A" + encodeURIComponent(code);
+
+  // 指定ノード配下の個別銘柄(テーマ・サブテーマを再帰的にたどる)
+  function collectStocks(nodeId, out = new Map()) {
+    const n = tree.nodes[nodeId];
+    if (!n) return out;
+    if (n.level === "stock") {
+      out.set(n.id, n);
+      return out;
+    }
+    (n.children || []).forEach((id) => collectStocks(id, out));
+    return out;
+  }
+
+  // 銘柄一覧: 証券コードをクリックするとTradingViewのチャートが新しいタブで開く
+  function renderStockList(container, label, nodeId) {
+    const stocks = [...collectStocks(nodeId).values()].sort((a, b) => a.id.localeCompare(b.id));
     const card = document.createElement("section");
-    card.className = "chart-card notice-card";
+    card.className = "chart-card notice-card stock-card";
+    const rows = stocks
+      .map((s) => {
+        const name = escHtml(s.name.replace(/\([0-9A-Z]{4}\)\s*$/, ""));
+        const market = escHtml((s.market || "").replace(/（.*）/, ""));
+        return `<tr><td><a class="tv" href="${tvUrl(s.id)}" target="_blank" rel="noopener noreferrer" title="TradingViewでチャートを開く">${escHtml(s.id)}</a></td><td>${name}</td><td class="mk">${market}</td></tr>`;
+      })
+      .join("");
     card.innerHTML = `
-      <h2>個別銘柄チャートについて</h2>
-      <p>「${label}」に含まれる個別銘柄のチャートは、データ量の都合上この簡易版には含まれていません。</p>
+      <h2>銘柄一覧: ${escHtml(label)}(${stocks.length}銘柄)</h2>
+      <p>証券コードをクリックすると、TradingViewのチャートが新しいタブで開きます。</p>
+      <div class="stock-scroll"><table class="stock-table"><thead><tr><th>コード</th><th>銘柄名</th><th>市場</th></tr></thead><tbody>${rows || '<tr><td colspan="3">該当する銘柄がありません</td></tr>'}</tbody></table></div>
       <p><a href="${SITE_URL}" target="_blank" rel="noopener">フル機能版(個別銘柄の資金流入指数・株価チャート)を見る →</a></p>
     `;
     container.appendChild(card);
@@ -434,7 +459,7 @@
     if (themeChildren.length === 0) {
       chartArea.innerHTML = "";
       destroyCharts();
-      renderStockNotice(chartArea, sectorName);
+      renderStockList(chartArea, sectorName, sectorId);
       return;
     }
 
@@ -452,9 +477,8 @@
         records: dataMap.get(n.id) || [],
       }));
       renderMultiLineChart(chartArea, "資金流入指数: サブテーマ別", subEntries, "flow", true, (nodeId) => drillInto(nodeId));
-    } else {
-      renderStockNotice(chartArea, sectorName);
     }
+    renderStockList(chartArea, sectorName, sectorId);
   }
 
   function drillInto(nodeId) {
@@ -464,7 +488,7 @@
     setBreadcrumb();
     chartArea.innerHTML = "";
     destroyCharts();
-    renderStockNotice(chartArea, node.name);
+    renderStockList(chartArea, node.name, nodeId);
   }
 
   async function render() {
@@ -496,3 +520,4 @@
     document.body.innerHTML = `<p style="padding:24px;color:#d03b3b;">データの読み込みに失敗しました。(${e.message})</p>`;
   });
 })();
+

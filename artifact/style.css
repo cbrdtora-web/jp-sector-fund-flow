@@ -98,3 +98,10 @@ body {
 @media (max-width: 480px) {
   body { padding: 12px; }
 }
+
+.stock-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; margin: 8px 0; }
+.stock-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.stock-table th, .stock-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+.stock-table th { position: sticky; top: 0; background: var(--surface-1); color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+.stock-table td.mk { color: var(--text-muted); }
+.stock-table a.tv { color: var(--series-1); font-weight: 600; font-variant-numeric: tabular-nums; text-decoration: underline dotted; text-underline-offset: 3px; }
