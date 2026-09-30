@@ -49,5 +49,12 @@ jobs:
             echo "変更なし"
           else
             git commit -m "資金流入データを更新 ($(date -u +%Y-%m-%d))"
-            git push
+            # 更新処理の最中に他のコミットが入ってもpushが弾かれないよう、取り込んでから再試行する
+            for i in 1 2 3; do
+              if git pull --rebase origin main && git push; then
+                exit 0
+              fi
+              sleep 10
+            done
+            exit 1
           fi
