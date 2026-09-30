@@ -247,7 +247,7 @@
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
-      interaction: { mode: "nearest", intersect: true },
+      interaction: { mode: "nearest", intersect: false, axis: "xy" },
       scales: {
         x: {
           grid: { color: gridColor, drawTicks: false, lineWidth: 1 },
@@ -271,11 +271,14 @@
           bodyColor: cssVar("--text-secondary"),
           borderColor: cssVar("--border"),
           borderWidth: 1,
+          padding: 10,
+          boxPadding: 4,
+          titleFont: { weight: "600" },
           callbacks: {
             label: (ctx) => {
               const v = ctx.parsed.y;
               const formatted = v === null || v === undefined ? "-" : formatValueForAxis(v, valueKey);
-              return `${ctx.dataset.label}: ${formatted}`;
+              return [ctx.dataset.label, `資金流入指数: ${formatted}`];
             },
           },
         },
@@ -334,6 +337,8 @@
         backgroundColor: color,
         borderWidth: 2,
         pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHitRadius: 10,
         fill: false,
         tension: 0.12,
         spanGaps: true,

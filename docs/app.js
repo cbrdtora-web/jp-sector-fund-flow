@@ -313,7 +313,7 @@
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
-      interaction: { mode: "nearest", intersect: true },
+      interaction: { mode: "nearest", intersect: false, axis: "xy" },
       scales: {
         x: {
           grid: { color: gridColor, drawTicks: false, lineWidth: 1 },
@@ -338,11 +338,23 @@
           bodyColor: cssVar("--text-secondary"),
           borderColor: cssVar("--border"),
           borderWidth: 1,
+          padding: 10,
+          boxPadding: 4,
+          titleFont: { weight: "600" },
           callbacks: {
+            // 線(=何か)・日付(=いつ)・金額(=いくらか)を1つのツールチップにまとめて出す
             label: (ctx) => {
               const v = ctx.parsed.y;
-              const formatted = v === null || v === undefined ? "-" : `${formatY(v)}${unitSuffix}`;
-              return `${ctx.dataset.label}: ${formatted}`;
+              const lines = [ctx.dataset.label];
+              if (v === null || v === undefined) return lines;
+              if (isPercent) {
+                const raw = ctx.dataset._raw ? ctx.dataset._raw[ctx.dataIndex] : null;
+                lines.push(`騰落率: ${formatPercent(v)}`);
+                if (raw !== null && raw !== undefined) lines.push(`株価: ${raw.toLocaleString("ja-JP")}円`);
+              } else {
+                lines.push(`${valueKey === "close" ? "株価" : "資金流入指数"}: ${formatY(v)}${unitSuffix}`);
+              }
+              return lines;
             },
           },
         },
@@ -399,6 +411,7 @@
 
     entries.forEach((entry, i) => {
       const filtered = applyPeriod(entry.records, valueKey, rebaseMode);
+      const rawWindow = isPercent ? applyPeriod(entry.records, valueKey, null) : null;
       if (filtered.length > labels.length) labels = filtered.map((r) => r.date);
       const color = colorForIndex(i, entries.length, dark);
       datasets.push({
@@ -406,10 +419,13 @@
         _nodeId: entry.id,
         _market: entry.market ? shortMarketLabel(entry.market) : "",
         data: filtered.map((r) => r[valueKey] ?? null),
+        _raw: rawWindow ? rawWindow.map((r) => r[valueKey] ?? null) : null,
         borderColor: color,
         backgroundColor: color,
         borderWidth: 2,
         pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHitRadius: 10,
         fill: false,
         tension: 0.12,
         spanGaps: true,
