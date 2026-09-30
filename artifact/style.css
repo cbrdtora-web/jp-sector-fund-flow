@@ -6,6 +6,7 @@
   --text-secondary: #52514e;
   --text-muted:     #898781;
   --gridline:       #e1e0d9;
+  --grid-strong:    rgba(11,11,11,0.14);
   --baseline:       #c3c2b7;
   --border:         rgba(11,11,11,0.10);
   --series-1:       #2a78d6;
@@ -19,6 +20,7 @@
     --text-secondary: #c3c2b7;
     --text-muted:     #898781;
     --gridline:       #2c2c2a;
+    --grid-strong:    rgba(255,255,255,0.16);
     --baseline:       #383835;
     --border:         rgba(255,255,255,0.10);
     --series-1:       #3987e5;
@@ -32,6 +34,7 @@
   --text-secondary: #c3c2b7;
   --text-muted:     #898781;
   --gridline:       #2c2c2a;
+  --grid-strong:    rgba(255,255,255,0.16);
   --baseline:       #383835;
   --border:         rgba(255,255,255,0.10);
   --series-1:       #3987e5;
@@ -44,14 +47,14 @@ body {
   background: var(--page-plane);
   color: var(--text-primary);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  padding: 16px;
+  padding: 12px;
 }
 
-.page-header h1 { font-size: 18px; margin: 0 0 6px; }
-.subtitle { color: var(--text-secondary); font-size: 13px; margin: 0 0 4px; max-width: 720px; }
-.disclaimer { color: var(--text-muted); font-size: 11px; margin: 0 0 16px; }
+.page-header h1 { font-size: 16px; margin: 0 0 4px; }
+.subtitle { color: var(--text-secondary); font-size: 12px; margin: 0 0 3px; max-width: 720px; }
+.disclaimer { color: var(--text-muted); font-size: 10.5px; margin: 0 0 8px; }
 
-.breadcrumb { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 13px; margin-bottom: 16px; }
+.breadcrumb { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 13px; margin-bottom: 8px; }
 .breadcrumb button { background: none; border: none; color: var(--series-1); cursor: pointer; font-size: 13px; padding: 2px 4px; }
 .breadcrumb button:hover { text-decoration: underline; }
 .breadcrumb .sep { color: var(--text-muted); }
@@ -61,24 +64,24 @@ body {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
+  padding: 12px;
+  margin-bottom: 10px;
 }
-.chart-card h2 { font-size: 14px; margin: 0 0 12px; color: var(--text-primary); }
-.chart-wrap { position: relative; width: 100%; }
+.chart-card h2 { font-size: 13px; margin: 0 0 8px; color: var(--text-primary); }
+.chart-wrap { position: relative; width: 100%; height: clamp(220px, 42vh, 420px); }
 .chart-wrap canvas { cursor: crosshair; touch-action: none; }
 
 .notice-card p { font-size: 13px; color: var(--text-secondary); margin: 0 0 8px; }
 .notice-card a { color: var(--series-1); }
 
-.toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .period-control { display: flex; flex-wrap: wrap; gap: 4px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
 .period-btn { border: none; background: none; color: var(--text-secondary); font-size: 12px; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
 .period-btn.active { background: var(--series-1); color: #ffffff; }
 
 .loading { color: var(--text-muted); font-size: 13px; padding: 32px 0; text-align: center; }
 
-.chart-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 12px; max-height: 140px; overflow-y: auto; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; max-height: 110px; overflow-y: auto; }
 .legend-chip {
   display: inline-flex; align-items: center; gap: 6px;
   border: 1px solid var(--border); background: var(--page-plane);

@@ -42,7 +42,8 @@
   let path = [{ id: "TOP", name: "全業種(33業種)" }];
 
   const sanitize = (id) => id.replace(/:/g, "__").replace(/\//g, "_");
-  const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  // CSS変数は.viz-root(body要素)に定義されているため、documentElementではなくbodyを参照する。
+  const cssVar = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
 
   function isDarkMode() {
     const attr = document.documentElement.getAttribute("data-theme");
@@ -240,48 +241,21 @@
     charts = [];
   }
 
-  // TradingViewと同様に、ズーム/パンで見えている範囲のデータに合わせてY軸を
-  // 自動的に伸縮させる(表示中の全系列の最小値〜最大値にフィット)。
-  function rescaleYToVisibleRange(chart) {
-    const xScale = chart.scales.x;
-    if (!xScale) return;
-    const minIndex = Math.max(0, Math.floor(xScale.min));
-    const maxIndex = Math.min(chart.data.labels.length - 1, Math.ceil(xScale.max));
-    let min = Infinity;
-    let max = -Infinity;
-    chart.data.datasets.forEach((ds, i) => {
-      if (chart.getDatasetMeta(i).hidden) return;
-      for (let idx = minIndex; idx <= maxIndex; idx++) {
-        const v = ds.data[idx];
-        if (v === null || v === undefined) continue;
-        if (v < min) min = v;
-        if (v > max) max = v;
-      }
-    });
-    if (min === Infinity) return;
-    if (min === max) {
-      min -= 1;
-      max += 1;
-    }
-    const pad = (max - min) * 0.08;
-    chart.options.scales.y.min = min - pad;
-    chart.options.scales.y.max = max + pad;
-    chart.update("none");
-  }
-
   function baseLineOptions(valueKey) {
+    const gridColor = cssVar("--grid-strong") || cssVar("--gridline");
     return {
       responsive: true,
+      maintainAspectRatio: false,
       animation: false,
       interaction: { mode: "nearest", intersect: true },
       scales: {
         x: {
-          grid: { color: cssVar("--gridline"), drawTicks: false },
+          grid: { color: gridColor, drawTicks: false, lineWidth: 1 },
           ticks: { color: cssVar("--text-muted"), maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
           border: { color: cssVar("--baseline") },
         },
         y: {
-          grid: { color: cssVar("--gridline"), drawTicks: false },
+          grid: { color: gridColor, drawTicks: false, lineWidth: 1 },
           ticks: {
             color: cssVar("--text-muted"),
             callback: (value) => formatValueForAxis(value, valueKey),
@@ -306,19 +280,14 @@
           },
         },
         // TradingViewと同様に、マウスホイールでズーム、ドラッグでパンできるようにする。
-        // パン/ズームのたびにY軸を表示範囲に合わせて伸縮させ(縦横ともに追従)、
-        // ダブルクリックで元の表示範囲に戻る(renderMultiLineChart側でresetZoomを紐付け)。
+        // mode:"xy"なので上下方向にも伸縮・移動でき、ダブルクリックで元の表示範囲に戻る
+        // (renderMultiLineChart側でresetZoomを紐付け)。
         zoom: {
-          pan: {
-            enabled: true,
-            mode: "x",
-            onPanComplete: ({ chart }) => rescaleYToVisibleRange(chart),
-          },
+          pan: { enabled: true, mode: "xy" },
           zoom: {
             wheel: { enabled: true, speed: 0.1 },
             pinch: { enabled: true },
-            mode: "x",
-            onZoomComplete: ({ chart }) => rescaleYToVisibleRange(chart),
+            mode: "xy",
           },
           limits: { x: { minRange: 5 } },
         },
