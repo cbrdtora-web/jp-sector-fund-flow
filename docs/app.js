@@ -32,6 +32,14 @@
     return formatCompactJP(value);
   }
 
+  // 株価は銘柄ごとに水準がバラバラ(数百円〜数万円)なので、そのまま重ねると
+  // 安い銘柄がほぼ一直線に見えてしまう。期間の起点からの変化率(%)で表示する。
+  function formatPercent(value) {
+    if (value === null || value === undefined || Number.isNaN(value)) return "-";
+    const sign = value > 0 ? "+" : "";
+    return `${sign}${value.toFixed(1)}%`;
+  }
+
   let tree = null;
   const seriesCache = new Map(); // nodeId -> records[]
   let charts = []; // 現在表示中のChart.jsインスタンス
@@ -137,7 +145,7 @@
       const yScale = scales.y;
       if (yScale) {
         const value = yScale.getValueForPixel(cross.y);
-        const label = formatValueForAxis(value, chart._valueKey);
+        const label = chart._isPercent ? formatPercent(value) : formatValueForAxis(value, chart._valueKey);
         const boxW = ctx.measureText(label).width + 10;
         const boxH = 18;
         const boxX = Math.max(0, area.left - boxW - 2);
@@ -191,8 +199,9 @@
     return node.children.flatMap(collectStockIds);
   }
 
-  // 期間フィルタ + 累積指標の場合は期間の起点をゼロに揃える(相対的な変化を見やすくする)
-  function applyPeriod(records, valueKey, rebase) {
+  // 期間フィルタ + 累積指標の場合は期間の起点をゼロ(または0%)に揃える(相対的な変化を見やすくする)
+  // rebaseMode: "diff"(起点からの差分) | "percent"(起点からの変化率%) | falsy(そのまま)
+  function applyPeriod(records, valueKey, rebaseMode) {
     if (!records || records.length === 0) return [];
     let windowed = records;
     if (periodKey !== "all") {
@@ -202,7 +211,14 @@
       cutoff.setDate(cutoff.getDate() - days);
       windowed = records.filter((r) => new Date(r.date) >= cutoff);
     }
-    if (rebase && windowed.length > 0) {
+    if (rebaseMode === "percent" && windowed.length > 0) {
+      const base = windowed[0][valueKey];
+      windowed = windowed.map((r) => {
+        const v = r[valueKey];
+        const pct = base ? ((v ?? base) - base) / Math.abs(base) * 100 : null;
+        return { ...r, [valueKey]: pct };
+      });
+    } else if (rebaseMode && windowed.length > 0) {
       const base = windowed[0][valueKey] ?? 0;
       windowed = windowed.map((r) => ({ ...r, [valueKey]: (r[valueKey] ?? 0) - base }));
     }
@@ -289,9 +305,10 @@
     charts = [];
   }
 
-  function baseLineOptions(valueKey, showLegendTooltip) {
-    const unitSuffix = valueKey === "close" ? "円" : "";
+  function baseLineOptions(valueKey, showLegendTooltip, isPercent) {
+    const unitSuffix = isPercent ? "" : valueKey === "close" ? "円" : "";
     const gridColor = cssVar("--grid-strong") || cssVar("--gridline");
+    const formatY = (value) => (isPercent ? formatPercent(value) : formatValueForAxis(value, valueKey));
     return {
       responsive: true,
       maintainAspectRatio: false,
@@ -307,7 +324,7 @@
           grid: { color: gridColor, drawTicks: false, lineWidth: 1 },
           ticks: {
             color: cssVar("--text-muted"),
-            callback: (value) => formatValueForAxis(value, valueKey),
+            callback: (value) => formatY(value),
           },
           border: { display: false },
         },
@@ -324,7 +341,7 @@
           callbacks: {
             label: (ctx) => {
               const v = ctx.parsed.y;
-              const formatted = v === null || v === undefined ? "-" : `${formatValueForAxis(v, valueKey)}${unitSuffix}`;
+              const formatted = v === null || v === undefined ? "-" : `${formatY(v)}${unitSuffix}`;
               return `${ctx.dataset.label}: ${formatted}`;
             },
           },
@@ -350,7 +367,8 @@
 
   // 複数系列の折れ線チャートを1枚描画し、カスタム凡例を添える。
   // onLegendClick(nodeId) を渡すとクリックで遷移、渡さなければ表示/非表示トグル。
-  function renderMultiLineChart(container, title, entries, valueKey, rebase, onLegendClick) {
+  function renderMultiLineChart(container, title, entries, valueKey, rebaseMode, onLegendClick) {
+    const isPercent = rebaseMode === "percent";
     const card = document.createElement("section");
     card.className = "chart-card";
     const h2 = document.createElement("h2");
@@ -380,7 +398,7 @@
     let labels = [];
 
     entries.forEach((entry, i) => {
-      const filtered = applyPeriod(entry.records, valueKey, rebase);
+      const filtered = applyPeriod(entry.records, valueKey, rebaseMode);
       if (filtered.length > labels.length) labels = filtered.map((r) => r.date);
       const color = colorForIndex(i, entries.length, dark);
       datasets.push({
@@ -401,9 +419,10 @@
     const chart = new Chart(canvas, {
       type: "line",
       data: { labels, datasets },
-      options: baseLineOptions(valueKey),
+      options: baseLineOptions(valueKey, undefined, isPercent),
     });
     chart._valueKey = valueKey; // クロスヘアのY軸ラベル表示(億/兆 or 円)の切り替えに使う
+    chart._isPercent = isPercent; // 株価の騰落率(%)表示かどうか
     charts.push(chart);
 
     // TradingViewと同じくダブルクリックでズーム/パン(Y軸の自動伸縮含む)をリセットする。
@@ -522,7 +541,7 @@
     destroyCharts();
 
     const entries = sector33Ids.map((id) => ({ id, name: tree.nodes[id].name, records: dataMap.get(id) || [] }));
-    renderMultiLineChart(chartArea, "資金流入指数: 33業種の比較", entries, "flow", true, (nodeId) => {
+    renderMultiLineChart(chartArea, "資金流入指数: 33業種の比較", entries, "flow", "diff", (nodeId) => {
       const node = tree.nodes[nodeId];
       view = { mode: "sector", sectorId: nodeId };
       path = [path[0], { id: nodeId, name: node.name }];
@@ -550,7 +569,7 @@
     destroyCharts();
 
     const themeEntries = themeIds.map((id) => ({ id, name: tree.nodes[id].name, records: dataMap.get(id) || [] }));
-    renderMultiLineChart(chartArea, "資金流入指数: テーマ別", themeEntries, "flow", true, (nodeId) =>
+    renderMultiLineChart(chartArea, "資金流入指数: テーマ別", themeEntries, "flow", "diff", (nodeId) =>
       drillInto(nodeId)
     );
 
@@ -560,7 +579,7 @@
         name: `${tree.nodes[n.parent].name}・${n.name}`,
         records: dataMap.get(n.id) || [],
       }));
-      renderMultiLineChart(chartArea, "資金流入指数: サブテーマ別", subEntries, "flow", true, (nodeId) =>
+      renderMultiLineChart(chartArea, "資金流入指数: サブテーマ別", subEntries, "flow", "diff", (nodeId) =>
         drillInto(nodeId)
       );
     }
@@ -599,8 +618,12 @@
       market: tree.nodes[id].market || "",
     }));
     const valueKey = metric === "close" ? "close" : "flow";
-    const title = metric === "close" ? `株価: ${label}(${stockIds.length}銘柄)` : `資金流入指数: ${label}(${stockIds.length}銘柄)`;
-    renderMultiLineChart(chartArea, title, entries, valueKey, metric === "flow", null);
+    // 株価は銘柄ごとに水準が大きく違うため、そのまま重ねると安い銘柄が一直線に見える。
+    // 期間の起点からの騰落率(%)に揃えることで、水準の違う銘柄同士でも比較しやすくする。
+    const rebaseMode = metric === "close" ? "percent" : "diff";
+    const title =
+      metric === "close" ? `株価騰落率: ${label}(${stockIds.length}銘柄)` : `資金流入指数: ${label}(${stockIds.length}銘柄)`;
+    renderMultiLineChart(chartArea, title, entries, valueKey, rebaseMode, null);
   }
 
   async function render() {
