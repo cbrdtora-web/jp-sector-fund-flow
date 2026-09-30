@@ -280,14 +280,17 @@
           },
         },
         // TradingViewと同様に、マウスホイールでズーム、ドラッグでパンできるようにする。
-        // mode:"xy"なので上下方向にも伸縮・移動でき、ダブルクリックで元の表示範囲に戻る
-        // (renderMultiLineChart側でresetZoomを紐付け)。
+        // 通常はホイールで横(時間軸)方向にズームし、Y軸の目盛り部分の上で
+        // ホイールすると縦(金額)方向だけズームできる。ドラッグは縦横どちらにも
+        // 動かせる。ダブルクリックで元の表示範囲に戻る(renderMultiLineChart側で
+        // resetZoomを紐付け)。
         zoom: {
           pan: { enabled: true, mode: "xy" },
           zoom: {
             wheel: { enabled: true, speed: 0.1 },
             pinch: { enabled: true },
-            mode: "xy",
+            mode: "x",
+            scaleMode: "y",
           },
           limits: { x: { minRange: 5 } },
         },

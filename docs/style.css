@@ -154,6 +154,7 @@ body {
   gap: 6px;
   margin-top: 12px;
 }
+.legend-bulk-controls[hidden] { display: none; }
 .bulk-btn {
   border: 1px solid var(--border);
   background: var(--page-plane);
