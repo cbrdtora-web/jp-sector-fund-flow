@@ -27,6 +27,9 @@ OUT_DIR = "artifact"
 OUT_DATA = os.path.join(OUT_DIR, "data")
 
 KEEP_LEVELS = {"root", "sector17", "sector33", "theme", "subtheme"}
+# 銘柄一覧(コード→TradingViewリンク)の表示用に、銘柄ノード自体はtree.jsonに残す。
+# 時系列(series)は容量制限のため集計ノード(KEEP_LEVELS)のみ含める。
+TREE_LEVELS = KEEP_LEVELS | {"stock"}
 
 SITE_URL = "https://cbrdtora-web.github.io/jp-sector-fund-flow/"
 
@@ -45,14 +48,16 @@ def build_data() -> None:
 
     new_nodes = {}
     for nid, n in nodes.items():
-        if n["level"] not in KEEP_LEVELS:
+        if n["level"] not in TREE_LEVELS:
             continue
         n2 = dict(n)
-        n2["children"] = [c for c in n["children"] if nodes.get(c, {}).get("level") in KEEP_LEVELS]
+        n2["children"] = [c for c in n["children"] if nodes.get(c, {}).get("level") in TREE_LEVELS]
         new_nodes[nid] = n2
 
     copied, missing = 0, 0
-    for nid in new_nodes:
+    for nid, n in new_nodes.items():
+        if n["level"] not in KEEP_LEVELS:
+            continue
         fname = sanitize(nid) + ".json"
         src = os.path.join(DOCS_DATA, "series", fname)
         dst = os.path.join(OUT_DATA, "series", fname)
