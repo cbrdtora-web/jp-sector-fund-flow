@@ -10,6 +10,7 @@ data/universe.csv (銘柄マスタ) に対して、
   sector17 -> sector33 -> theme -> subtheme -> (個別銘柄)
 """
 import json
+import os
 import re
 import unicodedata
 
@@ -18,6 +19,7 @@ import pandas as pd
 UNIVERSE_PATH = "data/universe.csv"
 TOPIX17_MAP_PATH = "config/topix17_mapping.json"
 SUBTHEME_RULES_PATH = "config/subtheme_rules.json"
+THEME_OVERRIDES_PATH = "config/theme_overrides.json"
 OUTPUT_PATH = "data/universe_classified.csv"
 
 # このしきい値未満の銘柄しか含まないtheme/subthemeは、集計時に親階層へ統合される。
@@ -86,9 +88,16 @@ def main() -> None:
         print(f"警告: 17業種にマッピングできない33業種があります: {list(unmapped)}")
         universe["sector17"] = universe["sector17"].fillna("未分類")
 
-    classified = universe["name"].combine(
-        universe["sector33"], lambda name, sector33: classify_row(name, sector33, subtheme_rules)
-    )
+    overrides = load_json(THEME_OVERRIDES_PATH) if os.path.exists(THEME_OVERRIDES_PATH) else {}
+    overrides.pop("_comment", None)
+
+    def classify_with_override(row) -> tuple[str, str]:
+        forced = overrides.get(row["sector33"], {}).get(row["code"])
+        if forced:
+            return forced, ""
+        return classify_row(row["name"], row["sector33"], subtheme_rules)
+
+    classified = [classify_with_override(row) for _, row in universe.iterrows()]
     universe["theme"] = [t for t, _ in classified]
     universe["subtheme"] = [s for _, s in classified]
 
