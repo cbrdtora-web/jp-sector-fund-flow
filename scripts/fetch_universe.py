@@ -85,8 +85,9 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
     df = df[list(rename_map.values())]
 
     df["code"] = df["code"].astype(str).str.strip()
-    # 普通株式のみ(数字4桁のコード)。ETF・REIT等の一部は除外。
-    df = df[df["code"].str.match(r"^\d{4}$")]
+    # 普通株式のみ。コードは数字4桁、または2024年以降の新規上場で使われる
+    # 数字3桁+英字1桁(例: 285A)。ETF・REIT等はこの後の33業種「-」で除外される。
+    df = df[df["code"].str.match(r"^\d{3}[0-9A-Z]$")]
 
     if TARGET_MARKETS:
         print(f"[debug] 市場区分の内訳(フィルタ前): {df['market'].value_counts().to_dict()}")
